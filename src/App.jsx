@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import TasksPage from "./pages/TasksPage";
 import UsersPage from "./pages/UsersPage";
+import RolesPage from "./pages/RolesPage";
+import DashboardPage from "./pages/DashboardPage";
 import styled, { createGlobalStyle } from "styled-components";
 
 const GlobalStyle = createGlobalStyle`
@@ -46,6 +48,8 @@ function App() {
           <Routes>
             <Route path="/" element={<TasksPage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/roles" element={<RolesPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
           </Routes>
         </CenteredContainer>
       </AppBackground>

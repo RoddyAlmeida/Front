@@ -53,6 +53,8 @@ export default function Navbar() {
         <NavLinks>
           <NavLink to="/" $active={location.pathname === "/"}>Tareas</NavLink>
           <NavLink to="/users" $active={location.pathname === "/users"}>Usuarios</NavLink>
+          <NavLink to="/roles" $active={location.pathname === "/roles"}>Roles</NavLink>
+          <NavLink to="/dashboard" $active={location.pathname === "/dashboard"}>Dashboard</NavLink>
         </NavLinks>
       </NavContainer>
     </Nav>

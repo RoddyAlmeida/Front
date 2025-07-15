@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
+import { getUsers } from "../services/api";
 import styled, { keyframes } from "styled-components";
 import { FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
 
@@ -172,15 +173,27 @@ const CancelButton = styled.button`
   }
 `;
 
-function TaskForm({ initial, onSubmit, onCancel }) {
+function TaskForm({ initial, onSubmit, onCancel, users }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [description, setDescription] = useState(initial?.description || "");
-  const [status, setStatus] = useState(initial?.status || "pendiente");
+  const [status, setStatus] = useState(initial?.status || "pending");
+  const [userId, setUserId] = useState(initial?.user_id || "");
+  const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
-    onSubmit({ title, description, status });
+    if (!title.trim()) {
+      setError("El título es obligatorio");
+      return;
+    }
+    if (!status || !["pending", "in_progress", "completed"].includes(status)) {
+      setError("El estado es obligatorio y debe ser válido");
+      return;
+    }
+    setError("");
+    const payload = { title, description, status };
+    if (userId) payload.user_id = userId;
+    onSubmit(payload, setError);
   };
 
   return (
@@ -191,10 +204,18 @@ function TaskForm({ initial, onSubmit, onCancel }) {
       <Input as="textarea" value={description} onChange={e => setDescription(e.target.value)} />
       <Label>Estado *</Label>
       <Select value={status} onChange={e => setStatus(e.target.value)} required>
-        <option value="pendiente">Pendiente</option>
-        <option value="progreso">En progreso</option>
-        <option value="terminada">Terminada</option>
+        <option value="pending">Pendiente</option>
+        <option value="in_progress">En progreso</option>
+        <option value="completed">Terminada</option>
       </Select>
+      <Label>Usuario asignado</Label>
+      <Select value={userId} onChange={e => setUserId(e.target.value)}>
+        <option value="">Sin usuario</option>
+        {users && users.map(user => (
+          <option key={user.id} value={user.id}>{user.name || user.email}</option>
+        ))}
+      </Select>
+      {error && <div style={{ color: 'red', fontSize: '0.95rem', marginBottom: '0.5rem' }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
         <CancelButton type="button" onClick={onCancel}>Cancelar</CancelButton>
         <ActionButton $edit type="submit"><FiPlus />Guardar</ActionButton>
@@ -205,9 +226,12 @@ function TaskForm({ initial, onSubmit, onCancel }) {
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [filter, setFilter] = useState("todos");
+  const [search, setSearch] = useState("");
 
   const fetchTasks = () => {
     setLoading(true);
@@ -219,27 +243,40 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTasks();
+    getUsers().then(res => setUsers(res.data.data || []));
   }, []);
 
-  const handleCreate = (data) => {
+  const handleCreate = (data, setFormError) => {
     setLoading(true);
     api.post("/tasks", data)
       .then(() => {
         setShowForm(false);
         fetchTasks();
       })
-      .catch(() => alert("Error al crear tarea"))
+      .catch((err) => {
+        if (err.response && err.response.data && err.response.data.status === false && err.response.data.data) {
+          setFormError(typeof err.response.data.data === 'string' ? err.response.data.data : "Error al crear tarea");
+        } else {
+          alert("Error al crear tarea");
+        }
+      })
       .finally(() => setLoading(false));
   };
 
-  const handleEdit = (data) => {
+  const handleEdit = (data, setFormError) => {
     setLoading(true);
     api.put(`/tasks/${editing.id}`, data)
       .then(() => {
         setEditing(null);
         fetchTasks();
       })
-      .catch(() => alert("Error al actualizar tarea"))
+      .catch((err) => {
+        if (err.response && err.response.data && err.response.data.status === false && err.response.data.data) {
+          setFormError(typeof err.response.data.data === 'string' ? err.response.data.data : "Error al actualizar tarea");
+        } else {
+          alert("Error al actualizar tarea");
+        }
+      })
       .finally(() => setLoading(false));
   };
 
@@ -254,26 +291,65 @@ export default function TasksPage() {
       .finally(() => setLoading(false));
   };
 
+  const filteredTasks = (filter === "todos" ? tasks : tasks.filter(t => t.status === filter))
+    .filter(task => {
+      const q = search.toLowerCase();
+      const assignedUser = users.find(u => u.id === task.user_id);
+      return (
+        (task.title || "").toLowerCase().includes(q) ||
+        (task.description || "").toLowerCase().includes(q) ||
+        (assignedUser && (assignedUser.name || assignedUser.email || "").toLowerCase().includes(q))
+      );
+    });
+
+  function getStatusLabel(status) {
+    if (status === "pending") return "Pendiente";
+    if (status === "in_progress") return "En progreso";
+    if (status === "completed") return "Terminada";
+    return status;
+  }
+
   return (
     <div>
       <Title>Lista de Tareas</Title>
+      <input
+        type="text"
+        placeholder="Buscar por título o descripción..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ width: '100%', maxWidth: 350, marginBottom: 18, padding: 8, borderRadius: 8, border: '1px solid #ddd' }}
+      />
+      <div style={{ marginBottom: 24, display: 'flex', gap: 8 }}>
+        <button onClick={() => setFilter("todos")} style={{ background: filter === "todos" ? '#6366f1' : '#e5e7eb', color: filter === "todos" ? '#fff' : '#222', border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}>Todos</button>
+        <button onClick={() => setFilter("pending")} style={{ background: filter === "pending" ? '#f59e42' : '#e5e7eb', color: filter === "pending" ? '#fff' : '#222', border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}>Pendiente</button>
+        <button onClick={() => setFilter("in_progress")} style={{ background: filter === "in_progress" ? '#38bdf8' : '#e5e7eb', color: filter === "in_progress" ? '#fff' : '#222', border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}>En progreso</button>
+        <button onClick={() => setFilter("completed")} style={{ background: filter === "completed" ? '#22c55e' : '#e5e7eb', color: filter === "completed" ? '#fff' : '#222', border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}>Terminada</button>
+      </div>
       <ul style={{ listStyle: 'none', padding: 0 }}>
-        {(!loading && tasks.length === 0) && (
+        {(!loading && filteredTasks.length === 0) && (
           <li style={{ color: '#888' }}>No hay tareas registradas.</li>
         )}
-        {tasks.map(task => (
-          <Card key={task.id}>
-            <div style={{ fontWeight: 'bold', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
-              {task.title} <Badge status={task.status}>{task.status.charAt(0).toUpperCase() + task.status.slice(1)}</Badge>
-            </div>
-            <div style={{ color: '#666', fontSize: '1.05rem' }}>{task.description}</div>
-            <div style={{ fontSize: '0.95rem', color: '#6366f1' }}>Creada: {new Date(task.created_at).toLocaleString()}</div>
-            <Actions>
-              <ActionButton $edit onClick={() => setEditing(task)}><FiEdit2 />Editar</ActionButton>
-              <ActionButton onClick={() => handleDelete(task.id)}><FiTrash2 />Eliminar</ActionButton>
-            </Actions>
-          </Card>
-        ))}
+        {filteredTasks.map(task => {
+          const assignedUser = users.find(u => u.id === task.user_id);
+          let badgeColor = '#64748b';
+          if (task.status === 'pending') badgeColor = 'linear-gradient(90deg, #f59e42 0%, #fbbf24 100%)';
+          if (task.status === 'in_progress') badgeColor = 'linear-gradient(90deg, #38bdf8 0%, #6366f1 100%)';
+          if (task.status === 'completed') badgeColor = 'linear-gradient(90deg, #22c55e 0%, #a7f3d0 100%)';
+          return (
+            <Card key={task.id}>
+              <div style={{ fontWeight: 'bold', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+                {task.title} <Badge style={{ background: badgeColor }}>{getStatusLabel(task.status)}</Badge>
+              </div>
+              <div style={{ color: '#666', fontSize: '1.05rem' }}>{task.description}</div>
+              {assignedUser && <div style={{ fontSize: '0.98rem', color: '#7c3aed' }}>Asignada a: {assignedUser.name || assignedUser.email}</div>}
+              <div style={{ fontSize: '0.95rem', color: '#6366f1' }}>Creada: {new Date(task.created_at).toLocaleString()}</div>
+              <Actions>
+                <ActionButton $edit onClick={() => setEditing(task)}><FiEdit2 />Editar</ActionButton>
+                <ActionButton onClick={() => handleDelete(task.id)}><FiTrash2 />Eliminar</ActionButton>
+              </Actions>
+            </Card>
+          );
+        })}
       </ul>
       <NewTaskFab onClick={() => setShowForm(true)} title="Nueva tarea">
         <FiPlus />
@@ -282,7 +358,7 @@ export default function TasksPage() {
         <FormOverlay>
           <FormCard>
             <FormTitle>{editing ? "Editar tarea" : "Crear tarea"}</FormTitle>
-            <TaskForm initial={editing} onSubmit={editing ? handleEdit : handleCreate} onCancel={() => { setShowForm(false); setEditing(null); }} />
+            <TaskForm initial={editing} onSubmit={(data, setFormError) => editing ? handleEdit(data, setFormError) : handleCreate(data, setFormError)} onCancel={() => { setShowForm(false); setEditing(null); }} users={users} />
           </FormCard>
         </FormOverlay>
       )}
@@ -290,7 +366,7 @@ export default function TasksPage() {
         <FormOverlay>
           <FormCard>
             <FormTitle>Editar tarea</FormTitle>
-            <TaskForm initial={editing} onSubmit={handleEdit} onCancel={() => setEditing(null)} />
+            <TaskForm initial={editing} onSubmit={(data, setFormError) => handleEdit(data, setFormError)} onCancel={() => setEditing(null)} users={users} />
           </FormCard>
         </FormOverlay>
       )}

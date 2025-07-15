@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../services/api";
 import styled, { keyframes } from "styled-components";
 import { FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
+import { getRoles } from "../services/api";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -151,10 +152,11 @@ const CancelButton = styled.button`
   }
 `;
 
-function UserForm({ initial, onSubmit, onCancel }) {
+function UserForm({ initial, onSubmit, onCancel, roles }) {
   const [nombre, setNombre] = useState(initial?.name || initial?.nombre || "");
   const [correo, setCorreo] = useState(initial?.email || initial?.correo || "");
   const [contrasena, setContrasena] = useState("");
+  const [rolId, setRolId] = useState(initial?.rol_id || "");
   const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
@@ -167,8 +169,12 @@ function UserForm({ initial, onSubmit, onCancel }) {
       setError("Correo inválido");
       return;
     }
+    if (contrasena && contrasena.length > 0 && contrasena.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
     setError("");
-    onSubmit({ nombre, correo, contrasena });
+    onSubmit({ nombre, correo, contrasena, rol_id: rolId }, setError);
   };
 
   return (
@@ -179,6 +185,16 @@ function UserForm({ initial, onSubmit, onCancel }) {
       <Input value={correo} onChange={e => setCorreo(e.target.value)} required type="email" />
       <Label>Contraseña {initial ? "(dejar vacío para no cambiar)" : "*"}</Label>
       <Input value={contrasena} onChange={e => setContrasena(e.target.value)} type="password" placeholder={initial ? "Nueva contraseña (opcional)" : "Contraseña"} />
+      <div style={{ fontSize: '0.92rem', color: '#888', marginBottom: 6 }}>
+        Mínimo 6 caracteres
+      </div>
+      <Label>Rol</Label>
+      <select value={rolId} onChange={e => setRolId(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '0.7rem', marginBottom: '1.1rem' }}>
+        <option value="">Sin rol</option>
+        {roles && roles.map(role => (
+          <option key={role.id} value={role.id}>{role.name}</option>
+        ))}
+      </select>
       {error && <div style={{ color: 'red', fontSize: '0.95rem', marginBottom: '0.5rem' }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
         <CancelButton type="button" onClick={onCancel}>Cancelar</CancelButton>
@@ -190,10 +206,17 @@ function UserForm({ initial, onSubmit, onCancel }) {
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetchUsers();
+    getRoles().then(res => setRoles(res.data.data || []));
+  }, []);
 
   const fetchUsers = () => {
     setLoading(true);
@@ -203,43 +226,62 @@ export default function UsersPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const filteredUsers = users.filter(user => {
+    const q = search.toLowerCase();
+    return (
+      (user.name || user.nombre || "").toLowerCase().includes(q) ||
+      (user.email || user.correo || "").toLowerCase().includes(q) ||
+      (user.rol && user.rol.name && user.rol.name.toLowerCase().includes(q))
+    );
+  });
 
-  const handleCreate = (data) => {
+  const handleCreate = (data, setFormError) => {
     setLoading(true);
-    // Enviar los campos en inglés para el backend
     const payload = {
       name: data.nombre,
       email: data.correo,
       password: data.contrasena,
     };
+    if (data.rol_id) payload.rol_id = data.rol_id;
     api.post("/users", payload)
       .then(() => {
         setToast({ message: "Usuario creado", type: "success" });
         setShowForm(false);
+        setEditing(null);
         fetchUsers();
       })
-      .catch(() => setToast({ message: "Error al crear usuario", type: "error" }))
+      .catch((err) => {
+        if (err.response && err.response.data && err.response.data.status === false && err.response.data.data && err.response.data.data.email) {
+          setFormError("El email ya está registrado");
+        } else {
+          setToast({ message: "Error al crear usuario", type: "error" });
+        }
+      })
       .finally(() => setLoading(false));
   };
 
-  const handleEdit = (data) => {
+  const handleEdit = (data, setFormError) => {
     setLoading(true);
-    // Enviar los campos en inglés para el backend
     const payload = {
       name: data.nombre,
       email: data.correo,
     };
     if (data.contrasena) payload.password = data.contrasena;
+    if (data.rol_id) payload.rol_id = data.rol_id;
     api.put(`/users/${editing.id}`, payload)
       .then(() => {
         setToast({ message: "Usuario actualizado", type: "success" });
         setEditing(null);
+        setShowForm(false);
         fetchUsers();
       })
-      .catch(() => setToast({ message: "Error al actualizar usuario", type: "error" }))
+      .catch((err) => {
+        if (err.response && err.response.data && err.response.data.status === false && err.response.data.data && err.response.data.data.email) {
+          setFormError("El email ya está registrado");
+        } else {
+          setToast({ message: "Error al actualizar usuario", type: "error" });
+        }
+      })
       .finally(() => setLoading(false));
   };
 
@@ -258,40 +300,47 @@ export default function UsersPage() {
   return (
     <div>
       <Title>Usuarios</Title>
+      <input
+        type="text"
+        placeholder="Buscar por nombre o correo..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ width: '100%', maxWidth: 350, marginBottom: 18, padding: 8, borderRadius: 8, border: '1px solid #ddd' }}
+      />
       <ul style={{ listStyle: 'none', padding: 0 }}>
-        {(!loading && users.length === 0) && (
+        {(!loading && filteredUsers.length === 0) && (
           <li style={{ color: '#888' }}>No hay usuarios registrados.</li>
         )}
-        {users.map(user => (
-          <Card key={user.id}>
-            <div style={{ fontWeight: 'bold', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
-              {user.name || user.nombre} <Badge>ID: {user.id.slice(-4)}</Badge>
-            </div>
-            <div style={{ color: '#666', fontSize: '1.05rem' }}>{user.email || user.correo}</div>
-            <div style={{ fontSize: '0.95rem', color: '#6366f1' }}>Creado: {new Date(user.created_at).toLocaleString()}</div>
-            <Actions>
-              <ActionButton $edit onClick={() => setEditing(user)}><FiEdit2 />Editar</ActionButton>
-              <ActionButton onClick={() => handleDelete(user.id)}><FiTrash2 />Eliminar</ActionButton>
-            </Actions>
-          </Card>
-        ))}
+        {filteredUsers.map(user => {
+          return (
+            <Card key={user.id}>
+              <div style={{ fontWeight: 'bold', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+                {user.name || user.nombre} <Badge>ID: {user.id.slice(-4)}</Badge>
+              </div>
+              <div style={{ color: '#666', fontSize: '1.05rem' }}>{user.email || user.correo}</div>
+              {user.rol && <div style={{ fontSize: '0.98rem', color: '#7c3aed' }}>Rol: {user.rol.name}</div>}
+              <div style={{ fontSize: '0.95rem', color: '#6366f1' }}>Creado: {new Date(user.created_at).toLocaleString()}</div>
+              <Actions>
+                <ActionButton $edit onClick={() => { setEditing(user); setShowForm(true); }}><FiEdit2 />Editar</ActionButton>
+                <ActionButton onClick={() => handleDelete(user.id)}><FiTrash2 />Eliminar</ActionButton>
+              </Actions>
+            </Card>
+          );
+        })}
       </ul>
-      <NewUserFab onClick={() => setShowForm(true)} title="Nuevo usuario">
+      <NewUserFab onClick={() => { setShowForm(true); setEditing(null); }} title="Nuevo usuario">
         <FiPlus />
       </NewUserFab>
-      {showForm && (
+      {(showForm) && (
         <FormOverlay>
           <FormCard>
             <FormTitle>{editing ? "Editar usuario" : "Crear usuario"}</FormTitle>
-            <UserForm initial={editing} onSubmit={editing ? handleEdit : handleCreate} onCancel={() => { setShowForm(false); setEditing(null); }} />
-          </FormCard>
-        </FormOverlay>
-      )}
-      {editing && (
-        <FormOverlay>
-          <FormCard>
-            <FormTitle>Editar usuario</FormTitle>
-            <UserForm initial={editing} onSubmit={handleEdit} onCancel={() => setEditing(null)} />
+            <UserForm
+              initial={editing}
+              onSubmit={(data, setFormError) => editing ? handleEdit(data, setFormError) : handleCreate(data, setFormError)}
+              onCancel={() => { setShowForm(false); setEditing(null); }}
+              roles={roles}
+            />
           </FormCard>
         </FormOverlay>
       )}
