@@ -3,6 +3,7 @@ import { getUsers } from "../services/api";
 import api from "../services/api";
 import styled from "styled-components";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import useUser from "../components/useUser";
 
 const Container = styled.div`
   max-width: 800px;
@@ -80,6 +81,11 @@ const ESTADO_LABELS = {
   in_progress: 'En progreso',
   pending: 'Pendiente',
 };
+const ROL_LABELS = {
+  Admin: 'Administrador',
+  Usuario: 'Usuario',
+  'Sin rol': 'Sin rol',
+};
 
 function countBy(arr, key) {
   return arr.reduce((acc, item) => {
@@ -90,6 +96,8 @@ function countBy(arr, key) {
 }
 
 export default function DashboardPage() {
+  const { user } = useUser();
+  const isAdmin = user?.rol?.name?.toLowerCase() === "admin";
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,13 +113,17 @@ export default function DashboardPage() {
     });
   }, []);
 
+  if (!isAdmin) {
+    return <div style={{ color: '#ef4444', fontWeight: 600, margin: '2rem', textAlign: 'center' }}>Acceso denegado</div>;
+  }
+
   // Estadísticas
   const tareasPorEstado = countBy(tasks, "status");
   const usuariosPorRol = countBy(users, u => u.rol?.name || "Sin rol");
 
   // Datos para gráficos
   const tareasEstadoData = Object.entries(tareasPorEstado).map(([estado, cant]) => ({ name: ESTADO_LABELS[estado] || estado, value: cant, raw: estado }));
-  const usuariosRolData = Object.entries(usuariosPorRol).map(([rol, cant]) => ({ name: rol, value: cant }));
+  const usuariosRolData = Object.entries(usuariosPorRol).map(([rol, cant]) => ({ name: ROL_LABELS[rol] || rol, value: cant }));
 
   return (
     <Container>
@@ -141,7 +153,25 @@ export default function DashboardPage() {
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
-                      label
+                      label={({ cx, cy, midAngle, outerRadius, value }) => {
+                        const RADIAN = Math.PI / 180;
+                        const radius = outerRadius + 18;
+                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                        return (
+                          <text
+                            x={x}
+                            y={y}
+                            fill="#6366f1"
+                            textAnchor={x > cx ? "start" : "end"}
+                            dominantBaseline="central"
+                            fontSize={16}
+                            fontWeight={700}
+                          >
+                            {value}
+                          </text>
+                        );
+                      }}
                     >
                       {tareasEstadoData.map((entry, idx) => (
                         <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />
@@ -173,10 +203,10 @@ export default function DashboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={usuariosRolData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
                     <XAxis dataKey="name" tick={{ fontSize: 13 }} />
-                    <YAxis allowDecimals={false} />
+                    <YAxis allowDecimals={false} tickFormatter={v => Number(v).toLocaleString('es-ES', { maximumFractionDigits: 0 })} />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="value" fill="#6366f1">
+                    <Bar dataKey="value" fill="#6366f1" name="Cantidad">
                       {usuariosRolData.map((entry, idx) => (
                         <Cell key={`cell-bar-${idx}`} fill={COLORS[idx % COLORS.length]} />
                       ))}
@@ -191,7 +221,7 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {Object.entries(usuariosPorRol).map(([rol, cant]) => (
-                      <tr key={rol}><Td>{rol}</Td><Td>{cant}</Td></tr>
+                      <tr key={rol}><Td>{ROL_LABELS[rol] || rol}</Td><Td>{cant}</Td></tr>
                     ))}
                   </tbody>
                 </StyledTable>

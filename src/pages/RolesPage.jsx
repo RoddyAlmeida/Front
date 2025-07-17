@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getRoles, createRole, updateRole, deleteRole } from "../services/api";
 import styled, { keyframes } from "styled-components";
+import useUser from "../components/useUser";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -107,6 +108,8 @@ const StyledTr = styled.tr`
 `;
 
 function RolesPage() {
+  const { user } = useUser();
+  const isAdmin = user?.rol?.name?.toLowerCase() === "admin";
   const [roles, setRoles] = useState([]);
   const [form, setForm] = useState({ name: "", description: "" });
   const [editingId, setEditingId] = useState(null);
@@ -127,6 +130,10 @@ function RolesPage() {
   useEffect(() => {
     fetchRoles();
   }, []);
+
+  if (!isAdmin) {
+    return <div style={{ color: '#ef4444', fontWeight: 600, margin: '2rem', textAlign: 'center' }}>Acceso denegado</div>;
+  }
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });

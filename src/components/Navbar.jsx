@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import styled from "styled-components";
+import useUser from "./useUser";
 
 const Nav = styled.nav`
   width: 100%;
@@ -46,15 +47,36 @@ const NavLink = styled(Link)`
 
 export default function Navbar() {
   const location = useLocation();
+  const { user, logout } = useUser();
+  const isAdmin = user?.rol?.name?.toLowerCase() === "admin";
   return (
     <Nav>
       <NavContainer>
         <Brand>Todo Pro</Brand>
         <NavLinks>
           <NavLink to="/" $active={location.pathname === "/"}>Tareas</NavLink>
-          <NavLink to="/users" $active={location.pathname === "/users"}>Usuarios</NavLink>
-          <NavLink to="/roles" $active={location.pathname === "/roles"}>Roles</NavLink>
-          <NavLink to="/dashboard" $active={location.pathname === "/dashboard"}>Dashboard</NavLink>
+          {isAdmin && <NavLink to="/users" $active={location.pathname === "/users"}>Usuarios</NavLink>}
+          {isAdmin && <NavLink to="/roles" $active={location.pathname === "/roles"}>Roles</NavLink>}
+          {isAdmin && <NavLink to="/dashboard" $active={location.pathname === "/dashboard"}>Dashboard</NavLink>}
+          {user && <NavLink to="/profile" $active={location.pathname === "/profile"}>Perfil</NavLink>}
+          {user && (
+            <span style={{
+              marginLeft: 16,
+              color: '#6366f1',
+              fontWeight: 700,
+              fontSize: '1.08rem',
+              background: 'rgba(99,102,241,0.08)',
+              padding: '4px 14px',
+              borderRadius: '1.1em',
+              boxShadow: '0 1px 4px rgba(99,102,241,0.08)',
+              letterSpacing: '0.5px',
+              display: 'inline-block',
+              verticalAlign: 'middle',
+            }}>
+              {user.name} <span style={{ color: '#7c3aed', fontWeight: 500 }}>({user.rol?.name})</span>
+            </span>
+          )}
+          {user && <NavLink as="button" onClick={logout} style={{ marginLeft: 12, background: '#f3e8ff', color: '#4f46e5', border: 'none', cursor: 'pointer' }}>Cerrar sesión</NavLink>}
         </NavLinks>
       </NavContainer>
     </Nav>

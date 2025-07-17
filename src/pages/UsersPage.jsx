@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../services/api";
 import styled, { keyframes } from "styled-components";
 import { FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
-import { getRoles } from "../services/api";
+import useUser from "../components/useUser";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -152,11 +152,10 @@ const CancelButton = styled.button`
   }
 `;
 
-function UserForm({ initial, onSubmit, onCancel, roles }) {
+function UserForm({ initial, onSubmit, onCancel }) {
   const [nombre, setNombre] = useState(initial?.name || initial?.nombre || "");
   const [correo, setCorreo] = useState(initial?.email || initial?.correo || "");
   const [contrasena, setContrasena] = useState("");
-  const [rolId, setRolId] = useState(initial?.rol_id || "");
   const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
@@ -174,7 +173,7 @@ function UserForm({ initial, onSubmit, onCancel, roles }) {
       return;
     }
     setError("");
-    onSubmit({ nombre, correo, contrasena, rol_id: rolId }, setError);
+    onSubmit({ nombre, correo, contrasena }, setError);
   };
 
   return (
@@ -188,13 +187,6 @@ function UserForm({ initial, onSubmit, onCancel, roles }) {
       <div style={{ fontSize: '0.92rem', color: '#888', marginBottom: 6 }}>
         Mínimo 6 caracteres
       </div>
-      <Label>Rol</Label>
-      <select value={rolId} onChange={e => setRolId(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '0.7rem', marginBottom: '1.1rem' }}>
-        <option value="">Sin rol</option>
-        {roles && roles.map(role => (
-          <option key={role.id} value={role.id}>{role.name}</option>
-        ))}
-      </select>
       {error && <div style={{ color: 'red', fontSize: '0.95rem', marginBottom: '0.5rem' }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
         <CancelButton type="button" onClick={onCancel}>Cancelar</CancelButton>
@@ -205,8 +197,9 @@ function UserForm({ initial, onSubmit, onCancel, roles }) {
 }
 
 export default function UsersPage() {
+  const { user } = useUser();
+  const isAdmin = user?.rol?.name?.toLowerCase() === "admin";
   const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -215,8 +208,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-    getRoles().then(res => setRoles(res.data.data || []));
   }, []);
+
+  if (!isAdmin) {
+    return <div style={{ color: '#ef4444', fontWeight: 600, margin: '2rem', textAlign: 'center' }}>Acceso denegado</div>;
+  }
 
   const fetchUsers = () => {
     setLoading(true);
@@ -242,7 +238,6 @@ export default function UsersPage() {
       email: data.correo,
       password: data.contrasena,
     };
-    if (data.rol_id) payload.rol_id = data.rol_id;
     api.post("/users", payload)
       .then(() => {
         setToast({ message: "Usuario creado", type: "success" });
@@ -339,7 +334,6 @@ export default function UsersPage() {
               initial={editing}
               onSubmit={(data, setFormError) => editing ? handleEdit(data, setFormError) : handleCreate(data, setFormError)}
               onCancel={() => { setShowForm(false); setEditing(null); }}
-              roles={roles}
             />
           </FormCard>
         </FormOverlay>

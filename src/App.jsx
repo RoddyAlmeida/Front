@@ -1,10 +1,13 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import TasksPage from "./pages/TasksPage";
 import UsersPage from "./pages/UsersPage";
 import RolesPage from "./pages/RolesPage";
 import DashboardPage from "./pages/DashboardPage";
+import LoginPage from "./pages/LoginPage";
+import ProfilePage from "./pages/ProfilePage";
 import styled, { createGlobalStyle } from "styled-components";
+import { UserProvider } from "./components/UserContext.jsx";
 
 const GlobalStyle = createGlobalStyle`
   body {
@@ -38,23 +41,46 @@ const CenteredContainer = styled.div`
   z-index: 1;
 `;
 
+function PrivateRoute({ children }) {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    window.location.href = "/login";
+    return null;
+  }
+  return children;
+}
+
 function App() {
+  const location = useLocation();
+  const hideNavbar = location.pathname === "/login";
+  return (
+    <>
+      <GlobalStyle />
+      <UserProvider>
+        <AppBackground>
+          {!hideNavbar && <Navbar />}
+          <CenteredContainer>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/" element={<PrivateRoute><TasksPage /></PrivateRoute>} />
+              <Route path="/users" element={<PrivateRoute><UsersPage /></PrivateRoute>} />
+              <Route path="/roles" element={<PrivateRoute><RolesPage /></PrivateRoute>} />
+              <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+              <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+            </Routes>
+          </CenteredContainer>
+        </AppBackground>
+      </UserProvider>
+    </>
+  );
+}
+
+function AppWrapper() {
   return (
     <BrowserRouter>
-      <GlobalStyle />
-      <AppBackground>
-        <Navbar />
-        <CenteredContainer>
-          <Routes>
-            <Route path="/" element={<TasksPage />} />
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/roles" element={<RolesPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-          </Routes>
-        </CenteredContainer>
-      </AppBackground>
+      <App />
     </BrowserRouter>
   );
 }
 
-export default App;
+export default AppWrapper;

@@ -3,6 +3,7 @@ import api from "../services/api";
 import { getUsers } from "../services/api";
 import styled, { keyframes } from "styled-components";
 import { FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
+import useUser from "../components/useUser";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -173,11 +174,11 @@ const CancelButton = styled.button`
   }
 `;
 
-function TaskForm({ initial, onSubmit, onCancel, users }) {
+function TaskForm({ initial, onSubmit, onCancel, users, isAdmin, userId, isEdit }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [status, setStatus] = useState(initial?.status || "pending");
-  const [userId, setUserId] = useState(initial?.user_id || "");
+  const [assignedUserId, setAssignedUserId] = useState(initial?.user_id || (isAdmin ? "" : userId));
   const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
@@ -186,13 +187,13 @@ function TaskForm({ initial, onSubmit, onCancel, users }) {
       setError("El título es obligatorio");
       return;
     }
-    if (!status || !["pending", "in_progress", "completed"].includes(status)) {
-      setError("El estado es obligatorio y debe ser válido");
-      return;
-    }
     setError("");
-    const payload = { title, description, status };
-    if (userId) payload.user_id = userId;
+    const payload = {
+      title,
+      description,
+      status: isAdmin || isEdit ? status : "pending",
+      user_id: isAdmin ? assignedUserId : userId,
+    };
     onSubmit(payload, setError);
   };
 
@@ -202,19 +203,27 @@ function TaskForm({ initial, onSubmit, onCancel, users }) {
       <Input value={title} onChange={e => setTitle(e.target.value)} required />
       <Label>Descripción</Label>
       <Input as="textarea" value={description} onChange={e => setDescription(e.target.value)} />
-      <Label>Estado *</Label>
-      <Select value={status} onChange={e => setStatus(e.target.value)} required>
-        <option value="pending">Pendiente</option>
-        <option value="in_progress">En progreso</option>
-        <option value="completed">Terminada</option>
-      </Select>
-      <Label>Usuario asignado</Label>
-      <Select value={userId} onChange={e => setUserId(e.target.value)}>
-        <option value="">Sin usuario</option>
-        {users && users.map(user => (
-          <option key={user.id} value={user.id}>{user.name || user.email}</option>
-        ))}
-      </Select>
+      {(isAdmin || isEdit) && (
+        <>
+          <Label>Estado *</Label>
+          <Select value={status} onChange={e => setStatus(e.target.value)} required>
+            <option value="pending">Pendiente</option>
+            <option value="in_progress">En progreso</option>
+            <option value="completed">Terminada</option>
+          </Select>
+        </>
+      )}
+      {isAdmin && (
+        <>
+          <Label>Usuario asignado</Label>
+          <Select value={assignedUserId} onChange={e => setAssignedUserId(e.target.value)}>
+            <option value="">Sin usuario</option>
+            {users && users.map(user => (
+              <option key={user.id} value={user.id}>{user.name || user.email}</option>
+            ))}
+          </Select>
+        </>
+      )}
       {error && <div style={{ color: 'red', fontSize: '0.95rem', marginBottom: '0.5rem' }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
         <CancelButton type="button" onClick={onCancel}>Cancelar</CancelButton>
@@ -225,6 +234,8 @@ function TaskForm({ initial, onSubmit, onCancel, users }) {
 }
 
 export default function TasksPage() {
+  const { user } = useUser();
+  const isAdmin = user?.rol?.name?.toLowerCase() === "admin";
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -293,6 +304,8 @@ export default function TasksPage() {
 
   const filteredTasks = (filter === "todos" ? tasks : tasks.filter(t => t.status === filter))
     .filter(task => {
+      // Si no es admin, solo mostrar tareas del usuario actual
+      if (!isAdmin && task.user_id !== user?.id) return false;
       const q = search.toLowerCase();
       const assignedUser = users.find(u => u.id === task.user_id);
       return (
@@ -358,7 +371,15 @@ export default function TasksPage() {
         <FormOverlay>
           <FormCard>
             <FormTitle>{editing ? "Editar tarea" : "Crear tarea"}</FormTitle>
-            <TaskForm initial={editing} onSubmit={(data, setFormError) => editing ? handleEdit(data, setFormError) : handleCreate(data, setFormError)} onCancel={() => { setShowForm(false); setEditing(null); }} users={users} />
+            <TaskForm
+              initial={editing}
+              onSubmit={(data, setFormError) => editing ? handleEdit(data, setFormError) : handleCreate(data, setFormError)}
+              onCancel={() => { setShowForm(false); setEditing(null); }}
+              users={users}
+              isAdmin={isAdmin}
+              userId={user?.id}
+              isEdit={!!editing}
+            />
           </FormCard>
         </FormOverlay>
       )}
@@ -366,7 +387,15 @@ export default function TasksPage() {
         <FormOverlay>
           <FormCard>
             <FormTitle>Editar tarea</FormTitle>
-            <TaskForm initial={editing} onSubmit={(data, setFormError) => handleEdit(data, setFormError)} onCancel={() => setEditing(null)} users={users} />
+            <TaskForm
+              initial={editing}
+              onSubmit={(data, setFormError) => handleEdit(data, setFormError)}
+              onCancel={() => setEditing(null)}
+              users={users}
+              isAdmin={isAdmin}
+              userId={user?.id}
+              isEdit={true}
+            />
           </FormCard>
         </FormOverlay>
       )}
