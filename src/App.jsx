@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import TasksPage from "./pages/TasksPage";
 import UsersPage from "./pages/UsersPage";
-import RolesPage from "./pages/RolesPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -64,7 +63,6 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/" element={<PrivateRoute><TasksPage /></PrivateRoute>} />
               <Route path="/users" element={<PrivateRoute><UsersPage /></PrivateRoute>} />
-              <Route path="/roles" element={<PrivateRoute><RolesPage /></PrivateRoute>} />
               <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
               <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
             </Routes>

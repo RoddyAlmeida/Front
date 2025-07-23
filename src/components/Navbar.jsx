@@ -56,11 +56,9 @@ export default function Navbar() {
         <NavLinks>
           <NavLink to="/" $active={location.pathname === "/"}>Tareas</NavLink>
           {isAdmin && <NavLink to="/users" $active={location.pathname === "/users"}>Usuarios</NavLink>}
-          {isAdmin && <NavLink to="/roles" $active={location.pathname === "/roles"}>Roles</NavLink>}
           {isAdmin && <NavLink to="/dashboard" $active={location.pathname === "/dashboard"}>Dashboard</NavLink>}
-          {user && <NavLink to="/profile" $active={location.pathname === "/profile"}>Perfil</NavLink>}
           {user && (
-            <span style={{
+            <NavLink to="/profile" $active={location.pathname === "/profile"} style={{
               marginLeft: 16,
               color: '#6366f1',
               fontWeight: 700,
@@ -72,9 +70,13 @@ export default function Navbar() {
               letterSpacing: '0.5px',
               display: 'inline-block',
               verticalAlign: 'middle',
+              textDecoration: 'none',
             }}>
-              {user.name} <span style={{ color: '#7c3aed', fontWeight: 500 }}>({user.rol?.name})</span>
-            </span>
+              {user.name}
+              {user.rol?.name?.toLowerCase() === 'admin' && (
+                <span style={{ color: '#7c3aed', fontWeight: 500 }}> (Admin)</span>
+              )}
+            </NavLink>
           )}
           {user && <NavLink as="button" onClick={logout} style={{ marginLeft: 12, background: '#f3e8ff', color: '#4f46e5', border: 'none', cursor: 'pointer' }}>Cerrar sesión</NavLink>}
         </NavLinks>
